@@ -75,5 +75,5 @@ for name in df['Chemical Name']:
         cid = compound.cid
         print(cid)
         
-pcp.download('SDF','SDFS/'+ str(cid)+'.sdf',cid,'cid')
-print("Downloading"+ str(cid))
+        pcp.download('SDF','SDFS/'+ str(cid)+'.sdf',cid,'cid')
+        print("Downloading "+ str(cid))
