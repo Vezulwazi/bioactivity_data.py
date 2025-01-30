@@ -1,79 +1,79 @@
 # -*- coding: utf-8 -*-
 """
-Spyder Editor
+Created on Fri Jan 10 11:45:58 2025
 
-This script downloads biological activity data from the USDA Phytochemical Database, 
-saves the files to disk, and processes the downloaded CSV files.
+@author: user-pc
 """
 
-import os
 import requests as req
-import pubchempy as pcp
-import pandas as pd
-import glob
-from pandas.errors import EmptyDataError
+import os
 
-# Create directories for saving the downloaded files and for processing
+# Create a folder for the bioact
 try:
     os.mkdir("bioact")
 except FileExistsError:
     pass
 
+# Define the URL of the .gov webpage
+base = 'https://phytochem.nal.usda.gov'
+
+# Change range according to first and last entry of webpage search
+for bio in range(1, 6):
+    compurl = "/biological-activities-chemicals-csv-export/"+str(bio)+"/all?page&_format=csv"
+    if os.path.isfile("bioact/"+str(bio)+".csv"):
+        print(str(bio)+" already downloaded")
+    else:
+        # Send a GET request to the webpage
+        res = req.get(base+compurl)
+        csv = open("bioact/"+str(bio)+".csv","wb")
+        csv.write(res.content)
+        csv.close()
+        print("Downloading "+str(bio))
+
+# Download compounds from pubchem
+import pubchempy as pcp
+import pandas as pd
+import glob
+from pandas.errors import EmptyDataError
+
+# Create a folder for sdf files
 try:
     os.mkdir("SDFS")
 except FileExistsError:
     pass
 
-# Base URL and endpoint for the USDA Phytochemical Database CSV export
-base = 'https://phytochem.nal.usda.gov'
-mid = '/biological-activities-chemicals-csv-export'
+# Find all the csv files and store in an array
+csv_files = []
+# Specify subdirectory that contain csv files and store all csv filenames
+csv_files += (glob.glob("bioact\*.csv"))
 
-# Download biological activity data CSV files (1 to 5)
-for bio in range(1, 6):
-    file_path = f"bioact/{bio}.csv"
-    
-    # Check if the file already exists
-    if os.path.isfile(file_path):
-        print(f"{bio} already downloaded")
-    else:
-        # Construct the URL for each CSV file
-        url = f"{base}{mid}/{bio}/all?page&_format=csv"
-        
-        # Send a GET request to download the CSV
-        res = req.get(url)
-        
-        # Save the CSV to the 'bioact' directory
-        with open(file_path, "wb") as csv:
-            csv.write(res.content)
-        print(f"Downloading {bio}")
-
-# Process downloaded CSV files and store data in 'SDFS'
-csv_files = glob.glob('bioact/*.csv')
-lig =[]
-for file in csv_files:
+lig = []
+# Read data from csv files and store in temp dataframe
+for files in csv_files:
     try:
-        # Read each CSV into a pandas DataFrame
-        temp_df = pd.read_csv(file)
-        
-        # Process the DataFrame (you can customize this part)
-        # For now, just save the DataFrame in a new folder as an example
-        output_file = f"SDFS/{os.path.basename(file)}"
-        temp_df.to_csv(output_file, index=False)
+        temp_df = pd.read_csv(files, sep=',')
         lig.append(temp_df)
-        
     except EmptyDataError:
-        print(f"{file} is empty. Skipping...")
+        print(files+" is an empty csv file")
 
-    except Exception as e:
-        print(f"Error processing {file}: {e}")
-        
+# Combine all data into single dataframe
 df = pd.concat(lig, axis=0, ignore_index=True)
 
+tot = [] 
+
+# Iterate through names in dataframe
 for name in df['Chemical Name']:
-    compounds = pcp.get_compounds(name,'name')
-    for compound in compounds:
-        cid = compound.cid
-        print(cid)
-        
-        pcp.download('SDF','SDFS/'+ str(cid)+'.sdf',cid,'cid')
-        print("Downloading "+ str(cid))
+    # Search for the chemical on PubChem
+        compounds = pcp.get_compounds(name, 'name')
+        # Check for CID for each compound
+        for compound in compounds:
+            cid = compound.cid
+        # Download SDF files based on CID
+        # Also note if you write out files based on name and not CID you will only end 
+        # up with the last SDF instead of various hits that are found for the name
+            pcp.download('SDF', 'SDFS/'+str(cid)+'.sdf', cid, 'cid', overwrite=True)
+            print("Downloading "+str(cid))
+            tot.append(cid)
+
+print("Total number of SDFs downloaded: "+str(len(tot)))
+print('DONE')
